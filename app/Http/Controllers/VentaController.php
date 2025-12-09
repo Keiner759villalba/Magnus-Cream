@@ -26,56 +26,82 @@ class VentaController extends Controller
      */
     public function create()
     {
-        $productos = Producto::orderBy('nombre')->get();
+        $productos = Producto::with('inventario')->orderBy('nombre')->get();
         return view('ventas.create', compact('productos'));
     }
 
     /**
-     * Almacena una nueva venta en la base de datos.
+     * Almacena una nueva venta en la base de datos (¡Actualizado para Múltiples Productos!)
      */
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'producto_id' => 'required|exists:productos,id',
-            'cantidad' => 'required|integer|min:1',
+        // 1. VALIDACIÓN
+        $request->validate([
             'nombre' => 'required|string|max:255',
             'identificacion' => 'required|string|max:100',
+            
+            // La clave: validar el array de productos
+            'productos' => 'required|array|min:1', 
+            'productos.*.producto_id' => 'required|exists:productos,id', 
+            'productos.*.cantidad' => 'required|integer|min:1', 
         ]);
 
-        $ventaId = null; // Inicializar la variable para usar fuera de la transacción
+        $ventaId = null; 
+        $totalVenta = 0; 
 
-        DB::transaction(function () use ($data, &$ventaId) {
-            // 1. Obtener o crear el cliente
+        DB::transaction(function () use ($request, &$ventaId, &$totalVenta) {
+            
+            // 2. Pre-procesar, verificar stock y calcular el total
+            $detallesParaGuardar = [];
+
+            foreach ($request->productos as $item) {
+                $producto = Producto::findOrFail($item['producto_id']);
+                $cantidad = (int)$item['cantidad'];
+                $subtotal = $producto->precio_venta * $cantidad;
+
+                // Verificar Stock antes de continuar con la transacción
+                $stockActual = $producto->inventario->stock ?? 0;
+                if ($cantidad > $stockActual) {
+                    // Lanza una excepción para abortar la transacción (rollback)
+                    throw new \Exception("Stock insuficiente para el producto: " . $producto->nombre . ". Stock disponible: " . $stockActual);
+                }
+
+                $totalVenta += $subtotal;
+
+                $detallesParaGuardar[] = [
+                    'producto_id' => $producto->id,
+                    'cantidad' => $cantidad,
+                    'subtotal' => $subtotal,
+                ];
+            }
+            
+            // 3. Obtener o crear el cliente
             $cliente = Cliente::firstOrCreate(
-                ['identificacion' => $data['identificacion']],
-                ['nombre' => $data['nombre']]
+                ['identificacion' => $request->identificacion],
+                ['nombre' => $request->nombre]
             );
 
-            // 2. Crear la Venta
+            // 4. Crear la Venta (Cabecera) con el total final
             $venta = Venta::create([
                 'cliente_id' => $cliente->id,
-                'total' => 0, // Se actualizará más tarde
+                'total' => $totalVenta, 
             ]);
 
-            // 3. Crear el Detalle de Venta y actualizar stock
-            $producto = Producto::findOrFail($data['producto_id']);
-            $cantidad = (int)$data['cantidad'];
-            $subtotal = $producto->precio_venta * $cantidad;
+            // 5. Crear los Detalles de Venta y actualizar el Stock
+            foreach ($detallesParaGuardar as $detalleData) {
+                // 5.1. Crear el DetalleVenta
+                $venta->detalles()->create($detalleData); 
 
-            DetalleVenta::create([
-                'venta_id' => $venta->id,
-                'producto_id' => $producto->id,
-                'cantidad' => $cantidad,
-                'subtotal' => $subtotal,
-            ]);
-
-            // 4. Actualizar Inventario (decremento de stock)
-            $inv = Inventario::firstOrCreate(['producto_id' => $producto->id], ['stock' => 0]);
-            $inv->decrement('stock', $cantidad);
-
-            // 5. Actualizar el Total de la Venta
-            $venta->update(['total' => $subtotal]);
-
+                // 5.2. Actualizar Inventario (decremento de stock)
+                $producto = Producto::findOrFail($detalleData['producto_id']);
+                $inv = $producto->inventario;
+                
+                // Usar el mismo 'firstOrCreate' y 'decrement' de tu código original
+                $inv = Inventario::firstOrCreate(['producto_id' => $producto->id], ['stock' => 0]);
+                $inv->decrement('stock', $detalleData['cantidad']);
+            }
+            
+            // 6. Asignar la ID para el redireccionamiento
             $ventaId = $venta->id;
         });
 
