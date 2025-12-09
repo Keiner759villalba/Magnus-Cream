@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* HEADER */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 40px;
+    background: white;
+    border-bottom: 1px solid #ddd;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.header nav a {
+    margin: 0 15px;
+    font-weight: 500;
+    color: #444;
+}
+
+.cart {
+    background:#f8f8f8;
+    padding: 8px 14px;
+    border-radius: 12px;
+    font-weight: bold;
+}
+
+/* HERO */
+.hero {
+    height: 45vh;
+    background-image: url('/static/img/tu-imagen.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+/* PRODUCTOS */
+.productos-section {
+    padding: 40px 60px;
+    background: #fafafa;
+}
+
+.productos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 25px;
+    margin-top: 20px;
+}
+
+.card {
+    background: white;
+    border-radius: 12px;
+    padding: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    text-align: center;
+    transition: 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+}
+
+.card img {
+    width: 100%;
+    height: 170px;
+    object-fit: cover;
+    border-radius: 10px;
+}
+
+.card .precio {
+    display: block;
+    margin: 10px 0;
+    font-size: 18px;
+    font-weight: bold;
+    color: #8a2be2;
+}
+
+.card button {
+    background: #8a2be2;
+    color: white;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+}
+.card button:hover {
+    background: #6b1fb8;
+}
